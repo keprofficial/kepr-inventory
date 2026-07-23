@@ -202,14 +202,15 @@ group by r.id,a.name order by r.id desc;
 
 create or replace view public.inventory_monthly_usage_view
 with (security_invoker=true) as
-select u.apartment_id,a.name apartment,date_trunc('month',u.usage_date)::date::text month,
+select u.apartment_id,a.name apartment,
+  date_trunc('month',u.usage_date)::date::text as "month",
   u.product_id,p.name product,p.unit,
   sum(u.quantity)::double precision quantity,
   sum(u.quantity*p.unit_price)::double precision value
 from inventory_usage u join inventory_apartments a on a.id=u.apartment_id
 join inventory_products p on p.id=u.product_id
 group by u.apartment_id,a.name,date_trunc('month',u.usage_date),u.product_id,p.name,p.unit
-order by month desc,a.name,p.name;
+order by "month" desc,a.name,p.name;
 
 grant select on public.inventory_users,public.inventory_requests,
   public.inventory_request_lines,public.inventory_usage,
