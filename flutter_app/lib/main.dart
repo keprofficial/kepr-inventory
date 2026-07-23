@@ -1120,6 +1120,11 @@ class RequestsPage extends StatelessWidget {
             title: 'Demand approvals',
             subtitle:
                 'Apartment demand moves stock only after inventory approval.',
+            action: IconButton.filledTonal(
+              tooltip: 'Refresh tickets',
+              onPressed: onChanged,
+              icon: const Icon(Icons.refresh),
+            ),
             child: Column(
               children: [
                 SectionCard(
@@ -1145,7 +1150,8 @@ class RequestsPage extends StatelessWidget {
                                           fontWeight: FontWeight.w800)),
                                   subtitle: Text(
                                     '${request.reference} · ${request.lineCount} items\n'
-                                    '${number(request.totalQuantity)} units · ${request.note}',
+                                    '${number(request.totalQuantity)} units · ${request.note}\n'
+                                    '${request.status == 'finance_approved' ? 'Finance approved · invoice required' : 'Awaiting availability check'}',
                                   ),
                                   isThreeLine: true,
                                   trailing: Wrap(
