@@ -1,15 +1,27 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'database.dart';
 import 'models.dart';
+import 'supabase_config.dart';
 
-void main() => runApp(const KeprApp());
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  if (SupabaseConfig.isConfigured) {
+    await Supabase.initialize(
+      url: SupabaseConfig.url,
+      publishableKey: SupabaseConfig.publishableKey,
+    );
+  }
+  runApp(const KeprApp());
+}
 
-const forest = Color(0xff176B4D);
-const darkForest = Color(0xff14251E);
-const canvas = Color(0xffF4F7F5);
-const orange = Color(0xffEE6A45);
+const forest = Color(0xffF85F5A);
+const darkForest = Color(0xffB12B2C);
+const canvas = Color(0xffF8FAFC);
+const orange = Color(0xffF85F5A);
 
 class KeprApp extends StatelessWidget {
   const KeprApp({super.key});
@@ -20,6 +32,7 @@ class KeprApp extends StatelessWidget {
         title: 'KEPR Inventory',
         theme: ThemeData(
           useMaterial3: true,
+          textTheme: GoogleFonts.manropeTextTheme(),
           colorScheme: ColorScheme.fromSeed(
             seedColor: forest,
             primary: forest,
@@ -45,9 +58,155 @@ class KeprApp extends StatelessWidget {
             ),
           ),
         ),
-        home: const HomeScreen(),
+        home: SupabaseConfig.isConfigured
+            ? const InventoryAuthGate()
+            : const SupabaseSetupScreen(),
       );
 }
+
+class InventoryAuthGate extends StatelessWidget {
+  const InventoryAuthGate({super.key});
+
+  @override
+  Widget build(BuildContext context) => StreamBuilder<AuthState>(
+        stream: Supabase.instance.client.auth.onAuthStateChange,
+        builder: (context, snapshot) =>
+            Supabase.instance.client.auth.currentSession == null
+                ? const InventorySignInScreen()
+                : const HomeScreen(),
+      );
+}
+
+class InventorySignInScreen extends StatefulWidget {
+  const InventorySignInScreen({super.key});
+
+  @override
+  State<InventorySignInScreen> createState() => _InventorySignInScreenState();
+}
+
+class _InventorySignInScreenState extends State<InventorySignInScreen> {
+  final email = TextEditingController();
+  final password = TextEditingController();
+  bool loading = false;
+
+  Future<void> signIn() async {
+    setState(() => loading = true);
+    try {
+      await Supabase.instance.client.auth.signInWithPassword(
+        email: email.text.trim(),
+        password: password.text,
+      );
+    } on AuthException catch (error) {
+      if (mounted) showMessage(context, error.message);
+    } finally {
+      if (mounted) setState(() => loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+        body: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 420),
+              child: Card(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(24),
+                  side: const BorderSide(color: Color(0xffE2E8F0)),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(28),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const Align(
+                        alignment: Alignment.centerLeft,
+                        child: CircleAvatar(
+                          radius: 28,
+                          backgroundColor: forest,
+                          foregroundColor: Colors.white,
+                          child: Text('K',
+                              style: TextStyle(
+                                  fontSize: 24, fontWeight: FontWeight.w800)),
+                        ),
+                      ),
+                      const SizedBox(height: 22),
+                      const Text('KEPR Inventory',
+                          style: TextStyle(
+                              fontSize: 26, fontWeight: FontWeight.w800)),
+                      const Text('Sign in with your KEPR staff account.',
+                          style: TextStyle(color: Colors.black54)),
+                      const SizedBox(height: 24),
+                      TextField(
+                        controller: email,
+                        keyboardType: TextInputType.emailAddress,
+                        decoration: const InputDecoration(labelText: 'Email'),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: password,
+                        obscureText: true,
+                        onSubmitted: (_) => signIn(),
+                        decoration:
+                            const InputDecoration(labelText: 'Password'),
+                      ),
+                      const SizedBox(height: 18),
+                      FilledButton(
+                        onPressed: loading ? null : signIn,
+                        child: Text(loading ? 'Signing in…' : 'Sign in'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+}
+
+class SupabaseSetupScreen extends StatelessWidget {
+  const SupabaseSetupScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+        body: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 520),
+            child: const Padding(
+              padding: EdgeInsets.all(28),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircleAvatar(
+                    radius: 30,
+                    backgroundColor: forest,
+                    foregroundColor: Colors.white,
+                    child: Text(
+                      'K',
+                      style:
+                          TextStyle(fontSize: 26, fontWeight: FontWeight.w800),
+                    ),
+                  ),
+                  SizedBox(height: 20),
+                  Text(
+                    'Connect KEPR Inventory',
+                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
+                  ),
+                  SizedBox(height: 10),
+                  Text(
+                    'Run with SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY '
+                    'using --dart-define.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.black54),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -94,6 +253,13 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ],
         ),
+        actions: [
+          IconButton(
+            tooltip: 'Sign out',
+            onPressed: () => Supabase.instance.client.auth.signOut(),
+            icon: const Icon(Icons.logout),
+          ),
+        ],
       ),
       body: SafeArea(child: pages[index]),
       bottomNavigationBar: NavigationBar(
