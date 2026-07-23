@@ -7,10 +7,32 @@ const state = { dashboard:null, products:[], apartments:[] };
 const titles = {dashboard:['OPERATIONS / OVERVIEW','Good inventory starts here.'],warehouse:['INVENTORY / WAREHOUSE','Warehouse stock'],apartments:['INVENTORY / LOCATIONS','Apartment inventory'],transfers:['MOVEMENTS / TRANSFERS','Move stock with confidence.'],report:['PLANNING / FORECAST','30-day requirement forecast']};
 
 async function api(path, options={}) {
+  if (location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+    return localApi(path, options);
+  }
   const res = await fetch(path,{...options,headers:{'Content-Type':'application/json',...(options.headers||{})}});
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || 'Something went wrong');
   return data;
+}
+const localStore = {
+  read(){return JSON.parse(localStorage.getItem('kepr-inventory-v1')||'{"products":[],"apartments":[],"stocks":[],"transfers":[]}')},
+  write(data){localStorage.setItem('kepr-inventory-v1',JSON.stringify(data))}
+};
+function localApi(path, options={}){
+  const d=localStore.read(), method=options.method||'GET', input=options.body?JSON.parse(options.body):{};
+  const products=()=>d.products.map(p=>({...p,quantity:d.stocks.find(s=>s.type==='warehouse'&&s.product_id===p.id)?.quantity||0})).sort((a,b)=>a.name.localeCompare(b.name));
+  const apartments=()=>d.apartments.map(a=>{const rows=d.stocks.filter(s=>s.type==='apartment'&&s.apartment_id===a.id);return {...a,item_count:rows.length,stock_value:rows.reduce((n,s)=>n+s.quantity*(d.products.find(p=>p.id===s.product_id)?.unit_price||0),0)}}).sort((a,b)=>a.name.localeCompare(b.name));
+  if(path==='/api/dashboard'){const ps=products();return {stats:{product_count:ps.length,apartment_count:d.apartments.length,warehouse_value:ps.reduce((n,p)=>n+p.quantity*p.unit_price,0),low_stock_count:ps.filter(p=>p.quantity<=p.reorder_level).length},products:ps,apartments:apartments()}}
+  if(path==='/api/products'&&method==='POST'){const id=Date.now();const p={id,name:input.name.trim(),unit:input.unit,unit_price:+input.unit_price||0,reorder_level:+input.reorder_level||0,notes:input.notes||''};d.products.push(p);d.stocks.push({type:'warehouse',product_id:id,quantity:+input.quantity||0});localStore.write(d);return {...p,quantity:+input.quantity||0}}
+  const pm=path.match(/^\/api\/products\/(\d+)$/);if(pm&&method==='PUT'){const id=+pm[1],p=d.products.find(x=>x.id===id),s=d.stocks.find(x=>x.type==='warehouse'&&x.product_id===id);Object.assign(p,{name:input.name,unit:input.unit,unit_price:+input.unit_price,reorder_level:+input.reorder_level,notes:input.notes||''});s.quantity=+input.quantity;localStore.write(d);return {...p,quantity:s.quantity}}
+  if(path==='/api/apartments'&&method==='POST'){const a={id:Date.now(),name:input.name.trim(),contact:input.contact||''};d.apartments.push(a);localStore.write(d);return a}
+  if(path==='/api/apartments')return apartments();
+  const sm=path.match(/^\/api\/apartments\/(\d+)\/stock$/);if(sm){const aid=+sm[1];return d.stocks.filter(s=>s.type==='apartment'&&s.apartment_id===aid).map(s=>{const p=d.products.find(x=>x.id===s.product_id);return {...s,product_name:p.name,unit:p.unit,unit_price:p.unit_price,value:s.quantity*p.unit_price}})}
+  if(path==='/api/transfers'&&method==='POST'){const ref=`TR-${(input.date||'').replaceAll('-','')}-${Math.random().toString(36).slice(2,8).toUpperCase()}`;for(const line of input.lines){const pid=+line.product_id,q=+line.quantity,w=d.stocks.find(s=>s.type==='warehouse'&&s.product_id===pid);if(!w||w.quantity<q)throw new Error(`${d.products.find(p=>p.id===pid)?.name||'Product'} has only ${w?.quantity||0} available`);w.quantity-=q;let a=d.stocks.find(s=>s.type==='apartment'&&s.apartment_id===+input.apartment_id&&s.product_id===pid);if(a)a.quantity+=q;else d.stocks.push({type:'apartment',apartment_id:+input.apartment_id,product_id:pid,quantity:q,monthly_use:0});d.transfers.unshift({reference:ref,movement_date:input.date,apartment_id:+input.apartment_id,product_id:pid,quantity:q})}localStore.write(d);return {reference:ref}}
+  if(path==='/api/transfers'){const groups={};for(const t of d.transfers){const g=groups[t.reference]??={reference:t.reference,movement_date:t.movement_date,apartment:d.apartments.find(a=>a.id===t.apartment_id)?.name,line_count:0,total_quantity:0,total_value:0};g.line_count++;g.total_quantity+=t.quantity;g.total_value+=t.quantity*(d.products.find(p=>p.id===t.product_id)?.unit_price||0)}return Object.values(groups)}
+  if(path==='/api/report')return d.stocks.filter(s=>s.type==='apartment').map(s=>{const p=d.products.find(x=>x.id===s.product_id),a=d.apartments.find(x=>x.id===s.apartment_id),m=s.monthly_use||0,w=d.stocks.find(x=>x.type==='warehouse'&&x.product_id===s.product_id);return {product_id:p.id,product_name:p.name,unit:p.unit,unit_price:p.unit_price,apartment:a.name,quantity:s.quantity,monthly_use:m,days_remaining:m?Math.round(s.quantity/(m/30)*10)/10:null,need_15:Math.max(0,m/2-s.quantity),need_30:Math.max(0,m-s.quantity),warehouse_quantity:w?.quantity||0}})
+  throw new Error('Not found');
 }
 function toast(message){const t=$('#toast');t.textContent=message;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2600)}
 function modal(html){$('#modalBody').innerHTML=html;$('#modal').hidden=false}

@@ -4,6 +4,7 @@ data/
 *.db-wal
 .env
 node_modules/
+.next/
 flutter_app/.dart_tool/
 flutter_app/build/
 flutter_app/.flutter-plugins
