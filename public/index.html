@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>KEPR Inventory</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <aside class="sidebar">
+    <a class="brand" href="#dashboard"><span class="brand-mark">K</span><span>KEPR<small>Inventory</small></span></a>
+    <nav>
+      <a data-page="dashboard" href="#dashboard"><span>⌂</span>Overview</a>
+      <a data-page="warehouse" href="#warehouse"><span>▦</span>Warehouse</a>
+      <a data-page="apartments" href="#apartments"><span>⌑</span>Apartments</a>
+      <a data-page="transfers" href="#transfers"><span>⇄</span>Transfers</a>
+      <a data-page="report" href="#report"><span>⌁</span>Forecast</a>
+    </nav>
+    <div class="db-status"><i></i><div><strong>Database online</strong><small>SQLite · locally secured</small></div></div>
+  </aside>
+  <main>
+    <header>
+      <div><button class="menu" id="menuBtn">☰</button><p class="eyebrow" id="eyebrow">OPERATIONS / OVERVIEW</p><h1 id="pageTitle">Good inventory starts here.</h1></div>
+      <div class="today"><small>Today</small><strong id="today"></strong></div>
+    </header>
+    <section id="app"><div class="loading">Loading inventory…</div></section>
+  </main>
+  <div class="modal-backdrop" id="modal" hidden><div class="modal"><button class="close" data-close>×</button><div id="modalBody"></div></div></div>
+  <div class="toast" id="toast"></div>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>
