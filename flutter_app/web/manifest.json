@@ -1,11 +1,11 @@
 {
-    "name": "kepr_inventory",
-    "short_name": "kepr_inventory",
+    "name": "KEPR Inventory",
+    "short_name": "KEPR",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#F8FAFC",
+    "theme_color": "#F85F5A",
+    "description": "KEPR warehouse and apartment inventory management.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

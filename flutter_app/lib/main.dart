@@ -59,7 +59,7 @@ class KeprApp extends StatelessWidget {
           ),
         ),
         home: SupabaseConfig.isConfigured
-            ? const InventoryAuthGate()
+            ? const HomeScreen()
             : const SupabaseSetupScreen(),
       );
 }
@@ -234,15 +234,19 @@ class _HomeScreenState extends State<HomeScreen> {
       appBar: AppBar(
         backgroundColor: darkForest,
         foregroundColor: Colors.white,
-        title: const Row(
+        title: Row(
           children: [
-            CircleAvatar(
-              backgroundColor: orange,
-              foregroundColor: Colors.white,
-              child: Text('K', style: TextStyle(fontWeight: FontWeight.w800)),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(9),
+              child: Image.asset(
+                'assets/brand/kepr_lockup.png',
+                width: 42,
+                height: 42,
+                fit: BoxFit.cover,
+              ),
             ),
-            SizedBox(width: 12),
-            Column(
+            const SizedBox(width: 12),
+            const Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('KEPR', style: TextStyle(fontWeight: FontWeight.w800)),
@@ -254,13 +258,6 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ],
         ),
-        actions: [
-          IconButton(
-            tooltip: 'Sign out',
-            onPressed: () => Supabase.instance.client.auth.signOut(),
-            icon: const Icon(Icons.logout),
-          ),
-        ],
       ),
       body: SafeArea(child: pages[index]),
       bottomNavigationBar: NavigationBar(
