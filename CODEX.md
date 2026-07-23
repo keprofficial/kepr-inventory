@@ -149,6 +149,7 @@ Run migrations in filename order:
 6. `20260723200000_finance_approval_and_weekly_insights.sql`
 7. `20260723210000_private_invoice_storage.sql`
 8. `20260723220000_repair_invoice_bucket.sql`
+9. `20260723230000_issue_stock_without_invoice.sql`
 
 Migration 19000 removes the temporary anonymous policies and restores
 authenticated role-based access.

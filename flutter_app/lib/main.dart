@@ -1151,7 +1151,7 @@ class RequestsPage extends StatelessWidget {
                                   subtitle: Text(
                                     '${request.reference} · ${request.lineCount} items\n'
                                     '${number(request.totalQuantity)} units · ${request.note}\n'
-                                    '${request.status == 'finance_approved' ? 'Finance approved · invoice required' : 'Awaiting availability check'}',
+                                    '${request.status == 'finance_approved' ? 'Finance approved · ready to issue' : 'Awaiting availability check'}',
                                   ),
                                   isThreeLine: true,
                                   trailing: Wrap(
@@ -1195,13 +1195,13 @@ class RequestsPage extends StatelessWidget {
                                         : [
                                             FilledButton.icon(
                                               onPressed: () =>
-                                                  showFulfillRequestDialog(
+                                                  showIssueStockDialog(
                                                 context,
                                                 request,
                                                 onChanged,
                                               ),
                                               icon: const Icon(
-                                                  Icons.receipt_long),
+                                                  Icons.local_shipping),
                                               label: const Text('Issue stock'),
                                             ),
                                           ],
@@ -2043,6 +2043,43 @@ Future<bool> showUsageForm(
     ),
   );
   return result ?? false;
+}
+
+Future<void> showIssueStockDialog(
+  BuildContext context,
+  StockRequest request,
+  VoidCallback onSaved,
+) async {
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      title: const Text('Issue approved stock?'),
+      content: Text(
+        '${request.reference} · ${request.apartment}\n\n'
+        '${number(request.totalQuantity)} units will move from the main '
+        'warehouse to this apartment.',
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(dialogContext, false),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(dialogContext, true),
+          child: const Text('Issue stock'),
+        ),
+      ],
+    ),
+  );
+  if (confirmed != true || !context.mounted) return;
+  try {
+    final transfer =
+        await InventoryDatabase.instance.issueApprovedStock(request.id);
+    if (context.mounted) showMessage(context, 'Stock issued as $transfer.');
+    onSaved();
+  } catch (error) {
+    if (context.mounted) showMessage(context, readableError(error));
+  }
 }
 
 Future<void> showFulfillRequestDialog(

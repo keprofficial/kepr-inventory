@@ -228,6 +228,14 @@ class InventoryDatabase {
     }
   }
 
+  Future<String> issueApprovedStock(int requestId) async {
+    final result = await _db.rpc(
+      'inventory_issue_approved_stock',
+      params: {'p_request_id': requestId},
+    );
+    return result as String;
+  }
+
   Future<void> recordUsage({
     required int productId,
     required double quantity,
