@@ -13,22 +13,22 @@
   <aside class="sidebar">
     <a class="brand" href="#dashboard"><span class="brand-mark">K</span><span>KEPR<small>Inventory</small></span></a>
     <nav>
-      <a data-page="dashboard" href="#dashboard"><span>⌂</span>Overview</a>
-      <a data-page="warehouse" href="#warehouse"><span>▦</span>Warehouse</a>
-      <a data-page="apartments" href="#apartments"><span>⌑</span>Apartments</a>
-      <a data-page="transfers" href="#transfers"><span>⇄</span>Transfers</a>
-      <a data-page="report" href="#report"><span>⌁</span>Forecast</a>
+      <a data-page="dashboard" href="#dashboard"><span aria-hidden="true">⌂</span>Overview</a>
+      <a data-page="warehouse" href="#warehouse"><span aria-hidden="true">▦</span>Warehouse</a>
+      <a data-page="apartments" href="#apartments"><span aria-hidden="true">⌑</span>Apartments</a>
+      <a data-page="transfers" href="#transfers"><span aria-hidden="true">⇄</span>Transfers</a>
+      <a data-page="report" href="#report"><span aria-hidden="true">⌁</span>Forecast</a>
     </nav>
     <div class="db-status"><i></i><div><strong>Database online</strong><small>SQLite · locally secured</small></div></div>
   </aside>
   <main>
     <header>
-      <div><button class="menu" id="menuBtn">☰</button><p class="eyebrow" id="eyebrow">OPERATIONS / OVERVIEW</p><h1 id="pageTitle">Good inventory starts here.</h1></div>
+      <div><button class="menu" id="menuBtn" aria-label="Open navigation">☰</button><p class="eyebrow" id="eyebrow">OPERATIONS / OVERVIEW</p><h1 id="pageTitle">Good inventory starts here.</h1></div>
       <div class="today"><small>Today</small><strong id="today"></strong></div>
     </header>
     <section id="app"><div class="loading">Loading inventory…</div></section>
   </main>
-  <div class="modal-backdrop" id="modal" hidden><div class="modal"><button class="close" data-close>×</button><div id="modalBody"></div></div></div>
+  <div class="modal-backdrop" id="modal" hidden><div class="modal" role="dialog" aria-modal="true"><button class="close" data-close aria-label="Close dialog">×</button><div id="modalBody"></div></div></div>
   <div class="toast" id="toast"></div>
   <script type="module" src="/app.js"></script>
 </body>
