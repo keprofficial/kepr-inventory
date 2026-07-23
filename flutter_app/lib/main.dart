@@ -280,8 +280,9 @@ class _HomeScreenState extends State<HomeScreen> {
             label: 'Apartments',
           ),
           NavigationDestination(
-            icon: Icon(Icons.swap_horiz),
-            label: 'Transfers',
+            icon: Icon(Icons.receipt_long_outlined),
+            selectedIcon: Icon(Icons.receipt_long),
+            label: 'Stock log',
           ),
           NavigationDestination(
             icon: Icon(Icons.query_stats),
@@ -430,10 +431,20 @@ class WarehousePage extends StatelessWidget {
           return PageShell(
             title: 'Warehouse stock',
             subtitle: 'Live quantities and valuation.',
-            action: FilledButton.icon(
-              onPressed: () => showProductForm(context, onChanged),
-              icon: const Icon(Icons.add),
-              label: const Text('Add'),
+            action: Wrap(
+              spacing: 8,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: () => showProductForm(context, onChanged),
+                  icon: const Icon(Icons.add),
+                  label: const Text('New product'),
+                ),
+                FilledButton.icon(
+                  onPressed: () => showStockInForm(context, onChanged),
+                  icon: const Icon(Icons.south_west),
+                  label: const Text('Stock in'),
+                ),
+              ],
             ),
             child: snapshot.connectionState == ConnectionState.waiting
                 ? const Center(child: CircularProgressIndicator())
@@ -610,65 +621,162 @@ class TransfersPage extends StatelessWidget {
   final VoidCallback onChanged;
 
   @override
-  Widget build(BuildContext context) => FutureBuilder<List<TransferSummary>>(
-        future: InventoryDatabase.instance.transfers(),
+  Widget build(BuildContext context) => FutureBuilder<List<StockMovement>>(
+        future: InventoryDatabase.instance.movements(),
         builder: (context, snapshot) {
-          final transfers = snapshot.data ?? [];
+          final movements = snapshot.data ?? [];
           return PageShell(
-            title: 'Stock transfers',
-            subtitle: 'Every movement has a durable audit reference.',
-            action: FilledButton.icon(
-              onPressed: () => showTransferForm(context, onChanged),
-              icon: const Icon(Icons.swap_horiz),
-              label: const Text('New'),
+            title: 'Stock movement',
+            subtitle: 'Receive into the warehouse or move stock to apartments.',
+            action: Wrap(
+              spacing: 8,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: () => showStockInForm(context, onChanged),
+                  icon: const Icon(Icons.south_west),
+                  label: const Text('Stock in'),
+                ),
+                FilledButton.icon(
+                  onPressed: () => showTransferForm(context, onChanged),
+                  icon: const Icon(Icons.north_east),
+                  label: const Text('Move out'),
+                ),
+              ],
             ),
-            child: SectionCard(
-              title: 'Recent transfers',
-              child: transfers.isEmpty
-                  ? const EmptyState(
-                      icon: Icons.swap_horiz,
-                      title: 'No transfers',
-                      message: 'Move warehouse stock to an apartment.',
-                    )
-                  : Column(
-                      children: transfers
-                          .map(
-                            (t) => ListTile(
-                              contentPadding: EdgeInsets.zero,
-                              leading: const CircleAvatar(
-                                backgroundColor: Color(0xffE2F1E9),
-                                child: Icon(Icons.north_east, color: forest),
-                              ),
-                              title: Text(
-                                t.apartment,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                              subtitle: Text(
-                                '${t.reference}\n${t.date} · ${t.lineCount} items',
-                              ),
-                              isThreeLine: true,
-                              trailing: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                crossAxisAlignment: CrossAxisAlignment.end,
-                                children: [
-                                  Text(
-                                    inr(t.totalValue),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: _MovementActionCard(
+                        icon: Icons.add_box_outlined,
+                        title: 'Stock in',
+                        message: 'Record supplier deliveries and purchases.',
+                        color: const Color(0xff3F9A6E),
+                        onTap: () => showStockInForm(context, onChanged),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _MovementActionCard(
+                        icon: Icons.local_shipping_outlined,
+                        title: 'Move out',
+                        message: 'Transfer warehouse stock to an apartment.',
+                        color: forest,
+                        onTap: () => showTransferForm(context, onChanged),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                SectionCard(
+                  title: 'Stock log · ${movements.length} entries',
+                  child: movements.isEmpty
+                      ? const EmptyState(
+                          icon: Icons.receipt_long_outlined,
+                          title: 'No stock movements',
+                          message:
+                              'Use Stock in or Move out to create the first log.',
+                        )
+                      : Column(
+                          children: movements
+                              .map(
+                                (movement) => ListTile(
+                                  contentPadding: EdgeInsets.zero,
+                                  leading: CircleAvatar(
+                                    backgroundColor: movement.isReceipt
+                                        ? const Color(0xffE3F4EB)
+                                        : const Color(0xffFFF0EC),
+                                    child: Icon(
+                                      movement.isReceipt
+                                          ? Icons.south_west
+                                          : Icons.north_east,
+                                      color: movement.isReceipt
+                                          ? const Color(0xff3F9A6E)
+                                          : forest,
+                                    ),
+                                  ),
+                                  title: Text(
+                                    movement.isReceipt
+                                        ? 'Received into warehouse'
+                                        : 'Moved to ${movement.destination}',
                                     style: const TextStyle(
                                       fontWeight: FontWeight.w700,
                                     ),
                                   ),
-                                  Text('${number(t.totalQuantity)} units'),
-                                ],
-                              ),
-                            ),
-                          )
-                          .toList(),
-                    ),
+                                  subtitle: Text(
+                                    '${movement.reference}\n'
+                                    '${movement.date} · ${movement.lineCount} items',
+                                  ),
+                                  isThreeLine: true,
+                                  trailing: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    crossAxisAlignment: CrossAxisAlignment.end,
+                                    children: [
+                                      Text(
+                                        '${movement.isReceipt ? '+' : '−'}'
+                                        '${number(movement.totalQuantity)}',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w800,
+                                          color: movement.isReceipt
+                                              ? const Color(0xff3F9A6E)
+                                              : forest,
+                                        ),
+                                      ),
+                                      Text(inr(movement.totalValue)),
+                                    ],
+                                  ),
+                                ),
+                              )
+                              .toList(),
+                        ),
+                ),
+              ],
             ),
           );
         },
+      );
+}
+
+class _MovementActionCard extends StatelessWidget {
+  const _MovementActionCard({
+    required this.icon,
+    required this.title,
+    required this.message,
+    required this.color,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String message;
+  final Color color;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: .08),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: color.withValues(alpha: .22)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(icon, color: color),
+              const SizedBox(height: 10),
+              Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
+              const SizedBox(height: 3),
+              Text(message,
+                  maxLines: 2,
+                  style: const TextStyle(fontSize: 11, color: Colors.black54)),
+            ],
+          ),
+        ),
       );
 }
 
@@ -1142,6 +1250,141 @@ Future<bool> showUsageForm(
     ),
   );
   return result ?? false;
+}
+
+Future<void> showStockInForm(
+  BuildContext context,
+  VoidCallback onSaved,
+) async {
+  final products = await InventoryDatabase.instance.products();
+  if (!context.mounted) return;
+  if (products.isEmpty) {
+    showMessage(context, 'Add a product before receiving stock.');
+    return;
+  }
+  final lines = <TransferLine>[
+    TransferLine(productId: products.first.id, quantity: 0),
+  ];
+  final note = TextEditingController();
+  await showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    builder: (sheetContext) => StatefulBuilder(
+      builder: (context, setSheetState) => Padding(
+        padding: EdgeInsets.fromLTRB(
+          20,
+          20,
+          20,
+          MediaQuery.viewInsetsOf(context).bottom + 24,
+        ),
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                'Receive stock',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+              ),
+              const Text(
+                'Adds inventory to the warehouse and creates a receipt log.',
+                style: TextStyle(color: Colors.black54),
+              ),
+              const SizedBox(height: 18),
+              ...lines.asMap().entries.map((entry) {
+                final index = entry.key;
+                final line = entry.value;
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        flex: 2,
+                        child: DropdownButtonFormField<int>(
+                          initialValue: line.productId,
+                          decoration:
+                              const InputDecoration(labelText: 'Product'),
+                          items: products
+                              .map(
+                                (product) => DropdownMenuItem(
+                                  value: product.id,
+                                  child: Text(product.name),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: (value) => line.productId = value!,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: TextFormField(
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
+                          decoration:
+                              const InputDecoration(labelText: 'Quantity'),
+                          onChanged: (value) =>
+                              line.quantity = double.tryParse(value) ?? 0,
+                        ),
+                      ),
+                      if (lines.length > 1)
+                        IconButton(
+                          onPressed: () =>
+                              setSheetState(() => lines.removeAt(index)),
+                          icon: const Icon(Icons.close),
+                        ),
+                    ],
+                  ),
+                );
+              }),
+              OutlinedButton.icon(
+                onPressed: () => setSheetState(
+                  () => lines.add(
+                    TransferLine(
+                      productId: products.first.id,
+                      quantity: 0,
+                    ),
+                  ),
+                ),
+                icon: const Icon(Icons.add),
+                label: const Text('Add another item'),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: note,
+                decoration: const InputDecoration(
+                  labelText: 'Supplier / invoice / note',
+                ),
+              ),
+              const SizedBox(height: 16),
+              FilledButton.icon(
+                onPressed: () async {
+                  try {
+                    final reference =
+                        await InventoryDatabase.instance.receiveStock(
+                      date: DateTime.now().toIso8601String().substring(0, 10),
+                      lines: lines,
+                      note: note.text,
+                    );
+                    if (sheetContext.mounted) Navigator.pop(sheetContext);
+                    if (context.mounted) {
+                      showMessage(context, 'Receipt $reference completed.');
+                    }
+                    onSaved();
+                  } catch (error) {
+                    if (sheetContext.mounted) {
+                      showMessage(sheetContext, readableError(error));
+                    }
+                  }
+                },
+                icon: const Icon(Icons.inventory),
+                label: const Text('Receive into warehouse'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
 }
 
 Future<void> showTransferForm(

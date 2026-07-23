@@ -105,4 +105,31 @@ class InventoryDatabase {
         .map((row) => TransferSummary.fromMap(Map<String, Object?>.from(row)))
         .toList();
   }
+
+  Future<String> receiveStock({
+    required String date,
+    required List<TransferLine> lines,
+    String note = '',
+  }) async {
+    if (lines.isEmpty) throw StateError('Add at least one item');
+    final result = await _db.rpc('inventory_receive_stock', params: {
+      'p_movement_date': date,
+      'p_lines': lines
+          .map((line) => {
+                'product_id': line.productId,
+                'quantity': line.quantity,
+              })
+          .toList(),
+      'p_note': note.trim(),
+    });
+    return result as String;
+  }
+
+  Future<List<StockMovement>> movements() async {
+    final rows =
+        await _db.from('inventory_movement_log_view').select().limit(200);
+    return rows
+        .map((row) => StockMovement.fromMap(Map<String, Object?>.from(row)))
+        .toList();
+  }
 }

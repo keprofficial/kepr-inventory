@@ -122,3 +122,35 @@ class TransferLine {
   int productId;
   double quantity;
 }
+
+class StockMovement {
+  const StockMovement({
+    required this.reference,
+    required this.type,
+    required this.date,
+    required this.destination,
+    required this.lineCount,
+    required this.totalQuantity,
+    required this.totalValue,
+  });
+
+  final String reference;
+  final String type;
+  final String date;
+  final String destination;
+  final int lineCount;
+  final double totalQuantity;
+  final double totalValue;
+
+  bool get isReceipt => type == 'receipt';
+
+  factory StockMovement.fromMap(Map<String, Object?> map) => StockMovement(
+        reference: map['reference'] as String,
+        type: map['movement_type'] as String,
+        date: map['movement_date'] as String,
+        destination: map['destination'] as String? ?? 'Warehouse',
+        lineCount: (map['line_count'] as num).toInt(),
+        totalQuantity: (map['total_quantity'] as num).toDouble(),
+        totalValue: (map['total_value'] as num).toDouble(),
+      );
+}

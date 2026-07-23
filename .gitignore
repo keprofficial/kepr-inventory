@@ -4,6 +4,8 @@ data/
 *.db-wal
 .env
 node_modules/
+.sites_flutter_*/
+flutter-web-*.tar.gz
 .next/
 flutter_app/.dart_tool/
 flutter_app/build/
