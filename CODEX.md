@@ -125,6 +125,7 @@ rejected
 
 ## Important source files
 
+- `DATABASE_MAP.md` — complete ERD, workflow, views, RPCs, RLS and Storage map
 - `flutter_app/lib/main.dart` — role selection, authentication and UI
 - `flutter_app/lib/database.dart` — Supabase repository and RPC calls
 - `flutter_app/lib/models.dart` — application models
