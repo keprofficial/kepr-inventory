@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'database.dart';
 import 'models.dart';
@@ -855,10 +857,23 @@ class TransfersPage extends StatelessWidget {
             title: 'Stock movement',
             subtitle:
                 'Receipts and approved apartment demand in one audit trail.',
-            action: FilledButton.icon(
-              onPressed: () => showStockInForm(context, onChanged),
-              icon: const Icon(Icons.south_west),
-              label: const Text('Stock in'),
+            action: Wrap(
+              spacing: 8,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const InvoicesPage()),
+                  ),
+                  icon: const Icon(Icons.description_outlined),
+                  label: const Text('Invoices'),
+                ),
+                FilledButton.icon(
+                  onPressed: () => showStockInForm(context, onChanged),
+                  icon: const Icon(Icons.south_west),
+                  label: const Text('Stock in'),
+                ),
+              ],
             ),
             child: Column(
               children: [
@@ -928,6 +943,158 @@ class TransfersPage extends StatelessWidget {
             ),
           );
         },
+      );
+}
+
+class InvoicesPage extends StatefulWidget {
+  const InvoicesPage({super.key});
+
+  @override
+  State<InvoicesPage> createState() => _InvoicesPageState();
+}
+
+class _InvoicesPageState extends State<InvoicesPage> {
+  DateTime month = DateTime(DateTime.now().year, DateTime.now().month);
+  DateTime? exactDate;
+
+  List<DateTime> get months => List.generate(
+        18,
+        (index) => DateTime(DateTime.now().year, DateTime.now().month - index),
+      );
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+        appBar: AppBar(
+          backgroundColor: darkForest,
+          foregroundColor: Colors.white,
+          title: const _AppBarBrand('Invoice register'),
+        ),
+        body: FutureBuilder<List<InvoiceRecord>>(
+          future: InventoryDatabase.instance.invoices(
+            month: month,
+            exactDate: exactDate,
+          ),
+          builder: (context, snapshot) {
+            final invoices = snapshot.data ?? [];
+            return PageShell(
+              title: 'Invoice register',
+              subtitle:
+                  'Private bills mapped to fulfilled apartment demand tickets.',
+              child: Column(
+                children: [
+                  SectionCard(
+                    title: 'Find invoices',
+                    child: Wrap(
+                      spacing: 12,
+                      runSpacing: 10,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        SizedBox(
+                          width: 210,
+                          child: DropdownButtonFormField<DateTime>(
+                            initialValue: month,
+                            decoration:
+                                const InputDecoration(labelText: 'Month'),
+                            items: months
+                                .map(
+                                  (value) => DropdownMenuItem(
+                                    value: value,
+                                    child: Text(
+                                        DateFormat('MMMM yyyy').format(value)),
+                                  ),
+                                )
+                                .toList(),
+                            onChanged: (value) => setState(() {
+                              month = value!;
+                              exactDate = null;
+                            }),
+                          ),
+                        ),
+                        OutlinedButton.icon(
+                          onPressed: () async {
+                            final selected = await showDatePicker(
+                              context: context,
+                              firstDate: DateTime(2020),
+                              lastDate: DateTime.now(),
+                              initialDate: exactDate ?? DateTime.now(),
+                            );
+                            if (selected != null) {
+                              setState(() => exactDate = selected);
+                            }
+                          },
+                          icon: const Icon(Icons.search),
+                          label: Text(exactDate == null
+                              ? 'Search exact date'
+                              : DateFormat('d MMM yyyy').format(exactDate!)),
+                        ),
+                        if (exactDate != null)
+                          TextButton.icon(
+                            onPressed: () => setState(() => exactDate = null),
+                            icon: const Icon(Icons.close),
+                            label: const Text('Clear date'),
+                          ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  SectionCard(
+                    title:
+                        '${exactDate == null ? DateFormat('MMMM yyyy').format(month) : DateFormat('d MMMM yyyy').format(exactDate!)} · ${invoices.length} invoices',
+                    child: snapshot.connectionState == ConnectionState.waiting
+                        ? const Center(child: CircularProgressIndicator())
+                        : invoices.isEmpty
+                            ? const EmptyState(
+                                icon: Icons.description_outlined,
+                                title: 'No invoices found',
+                                message:
+                                    'Try another month or clear the date filter.',
+                              )
+                            : Column(
+                                children: invoices
+                                    .map(
+                                      (invoice) => ListTile(
+                                        contentPadding: EdgeInsets.zero,
+                                        leading: const CircleAvatar(
+                                          backgroundColor: Color(0xffFFF0EC),
+                                          child: Icon(Icons.picture_as_pdf,
+                                              color: forest),
+                                        ),
+                                        title: Text(
+                                          invoice.invoiceNumber,
+                                          style: const TextStyle(
+                                              fontWeight: FontWeight.w800),
+                                        ),
+                                        subtitle: Text(
+                                          '${invoice.apartment} · ${invoice.requestReference}\n'
+                                          '${invoice.invoiceDate} · ${invoice.originalFilename}',
+                                        ),
+                                        isThreeLine: true,
+                                        trailing: IconButton(
+                                          tooltip: 'Open invoice',
+                                          onPressed: () async {
+                                            final url = await InventoryDatabase
+                                                .instance
+                                                .invoiceDownloadUrl(
+                                              invoice.storagePath,
+                                            );
+                                            await launchUrl(
+                                              url,
+                                              mode: LaunchMode
+                                                  .externalApplication,
+                                            );
+                                          },
+                                          icon: const Icon(Icons.open_in_new),
+                                        ),
+                                      ),
+                                    )
+                                    .toList(),
+                              ),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
       );
 }
 
@@ -1092,6 +1259,14 @@ class _FinancePortalState extends State<FinancePortal> {
           foregroundColor: Colors.white,
           title: const _AppBarBrand('Finance'),
           actions: [
+            IconButton(
+              tooltip: 'Invoice register',
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const InvoicesPage()),
+              ),
+              icon: const Icon(Icons.description_outlined),
+            ),
             IconButton(
               onPressed: () => Supabase.instance.client.auth.signOut(),
               icon: const Icon(Icons.logout),
@@ -1870,50 +2045,146 @@ Future<void> showFulfillRequestDialog(
   VoidCallback onSaved,
 ) async {
   final invoice = TextEditingController();
+  var invoiceDate = DateTime.now();
+  PlatformFile? selectedFile;
+  var uploading = false;
   await showDialog(
     context: context,
-    builder: (dialogContext) => AlertDialog(
-      title: const Text('Issue approved stock'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('${request.reference} · ${request.apartment}'),
-          const SizedBox(height: 14),
-          TextField(
-            controller: invoice,
-            decoration: const InputDecoration(
-              labelText: 'Invoice / bill reference',
-              hintText: 'Example: INV-2026-0184',
-            ),
+    builder: (dialogContext) => StatefulBuilder(
+      builder: (context, setDialogState) => AlertDialog(
+        title: const Text('Issue approved stock'),
+        content: SizedBox(
+          width: 440,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('${request.reference} · ${request.apartment}'),
+              const SizedBox(height: 14),
+              TextField(
+                controller: invoice,
+                decoration: const InputDecoration(
+                  labelText: 'Invoice number',
+                  hintText: 'Example: INV-2026-0184',
+                ),
+              ),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: uploading
+                    ? null
+                    : () async {
+                        final date = await showDatePicker(
+                          context: dialogContext,
+                          firstDate: DateTime(2020),
+                          lastDate: DateTime.now(),
+                          initialDate: invoiceDate,
+                        );
+                        if (date != null) {
+                          setDialogState(() => invoiceDate = date);
+                        }
+                      },
+                icon: const Icon(Icons.calendar_month),
+                label: Text(
+                  'Invoice date · ${DateFormat('d MMM yyyy').format(invoiceDate)}',
+                ),
+              ),
+              const SizedBox(height: 10),
+              OutlinedButton.icon(
+                onPressed: uploading
+                    ? null
+                    : () async {
+                        final result = await FilePicker.pickFiles(
+                          type: FileType.custom,
+                          allowedExtensions: [
+                            'pdf',
+                            'jpg',
+                            'jpeg',
+                            'png',
+                            'webp'
+                          ],
+                          withData: true,
+                        );
+                        if (result != null) {
+                          final file = result.files.single;
+                          if (file.size > 10485760) {
+                            if (dialogContext.mounted) {
+                              showMessage(dialogContext,
+                                  'Invoice file must be 10 MB or smaller.');
+                            }
+                            return;
+                          }
+                          setDialogState(() => selectedFile = file);
+                        }
+                      },
+                icon: const Icon(Icons.attach_file),
+                label: Text(selectedFile?.name ?? 'Select invoice file'),
+              ),
+              if (selectedFile != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Text(
+                    '${(selectedFile!.size / 1024).toStringAsFixed(1)} KB · '
+                    'PDF, JPG, PNG or WebP',
+                    style: const TextStyle(fontSize: 11, color: Colors.black54),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: uploading ? null : () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          FilledButton.icon(
+            onPressed: uploading
+                ? null
+                : () async {
+                    if (invoice.text.trim().isEmpty || selectedFile == null) {
+                      showMessage(dialogContext,
+                          'Invoice number and invoice file are required.');
+                      return;
+                    }
+                    final bytes = selectedFile!.bytes;
+                    if (bytes == null) {
+                      showMessage(
+                          dialogContext, 'Could not read invoice file.');
+                      return;
+                    }
+                    setDialogState(() => uploading = true);
+                    try {
+                      final transfer = await InventoryDatabase.instance
+                          .uploadInvoiceAndFulfill(
+                        requestId: request.id,
+                        invoiceNumber: invoice.text,
+                        invoiceDate:
+                            invoiceDate.toIso8601String().substring(0, 10),
+                        filename: selectedFile!.name,
+                        mimeType: invoiceMimeType(selectedFile!.extension),
+                        bytes: bytes,
+                      );
+                      if (dialogContext.mounted) Navigator.pop(dialogContext);
+                      if (context.mounted) {
+                        showMessage(context, 'Stock issued as $transfer.');
+                      }
+                      onSaved();
+                    } catch (error) {
+                      if (dialogContext.mounted) {
+                        showMessage(dialogContext, readableError(error));
+                        setDialogState(() => uploading = false);
+                      }
+                    }
+                  },
+            icon: uploading
+                ? const SizedBox.square(
+                    dimension: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.cloud_upload_outlined),
+            label: Text(uploading ? 'Uploading…' : 'Upload & issue stock'),
           ),
         ],
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(dialogContext),
-          child: const Text('Cancel'),
-        ),
-        FilledButton(
-          onPressed: () async {
-            if (invoice.text.trim().isEmpty) return;
-            try {
-              final transfer = await InventoryDatabase.instance
-                  .fulfillRequest(request.id, invoice.text);
-              if (dialogContext.mounted) Navigator.pop(dialogContext);
-              if (context.mounted) {
-                showMessage(context, 'Stock issued as $transfer.');
-              }
-              onSaved();
-            } catch (error) {
-              if (dialogContext.mounted) {
-                showMessage(dialogContext, readableError(error));
-              }
-            }
-          },
-          child: const Text('Issue stock'),
-        ),
-      ],
     ),
   );
 }
@@ -2368,6 +2639,22 @@ String inr(double value) => NumberFormat.compactCurrency(
       symbol: '₹',
       decimalDigits: 0,
     ).format(value);
+String invoiceMimeType(String? extension) {
+  switch (extension?.toLowerCase()) {
+    case 'pdf':
+      return 'application/pdf';
+    case 'jpg':
+    case 'jpeg':
+      return 'image/jpeg';
+    case 'png':
+      return 'image/png';
+    case 'webp':
+      return 'image/webp';
+    default:
+      return 'application/octet-stream';
+  }
+}
+
 String readableError(Object error) {
   final message = error.toString().replaceFirst('Bad state: ', '');
   if (message.contains('UNIQUE constraint')) return 'That name already exists.';

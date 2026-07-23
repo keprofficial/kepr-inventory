@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'models.dart';
@@ -192,15 +194,38 @@ class InventoryDatabase {
     return result as String;
   }
 
-  Future<String> fulfillRequest(
-    int requestId,
-    String invoiceReference,
-  ) async {
-    final result = await _db.rpc('inventory_fulfill_request', params: {
-      'p_request_id': requestId,
-      'p_invoice_reference': invoiceReference.trim(),
-    });
-    return result as String;
+  Future<String> uploadInvoiceAndFulfill({
+    required int requestId,
+    required String invoiceNumber,
+    required String invoiceDate,
+    required String filename,
+    required String mimeType,
+    required Uint8List bytes,
+  }) async {
+    final safeName =
+        filename.replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_').toLowerCase();
+    final path =
+        'requests/$requestId/${DateTime.now().microsecondsSinceEpoch}_$safeName';
+    await _db.storage.from('inventory-invoices').uploadBinary(
+          path,
+          bytes,
+          fileOptions: FileOptions(contentType: mimeType, upsert: false),
+        );
+    try {
+      final result = await _db.rpc('inventory_fulfill_request', params: {
+        'p_request_id': requestId,
+        'p_invoice_number': invoiceNumber.trim(),
+        'p_invoice_date': invoiceDate,
+        'p_storage_path': path,
+        'p_original_filename': filename,
+        'p_mime_type': mimeType,
+        'p_size_bytes': bytes.length,
+      });
+      return result as String;
+    } catch (_) {
+      await _db.storage.from('inventory-invoices').remove([path]);
+      rethrow;
+    }
   }
 
   Future<void> recordUsage({
@@ -228,5 +253,34 @@ class InventoryDatabase {
     return rows
         .map((row) => WeeklyInsight.fromMap(Map<String, Object?>.from(row)))
         .toList();
+  }
+
+  Future<List<InvoiceRecord>> invoices({
+    required DateTime month,
+    DateTime? exactDate,
+  }) async {
+    dynamic query = _db.from('inventory_invoice_register_view').select();
+    if (exactDate != null) {
+      query = query.eq(
+          'invoice_date', exactDate.toIso8601String().substring(0, 10));
+    } else {
+      final start = DateTime(month.year, month.month);
+      final end = DateTime(month.year, month.month + 1);
+      query = query
+          .gte('invoice_date', start.toIso8601String().substring(0, 10))
+          .lt('invoice_date', end.toIso8601String().substring(0, 10));
+    }
+    final rows = await query;
+    return (rows as List)
+        .map((row) =>
+            InvoiceRecord.fromMap(Map<String, Object?>.from(row as Map)))
+        .toList();
+  }
+
+  Future<Uri> invoiceDownloadUrl(String storagePath) async {
+    final url = await _db.storage
+        .from('inventory-invoices')
+        .createSignedUrl(storagePath, 300);
+    return Uri.parse(url);
   }
 }

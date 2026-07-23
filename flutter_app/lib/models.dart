@@ -194,6 +194,41 @@ class WeeklyInsight {
       );
 }
 
+class InvoiceRecord {
+  const InvoiceRecord({
+    required this.id,
+    required this.requestReference,
+    required this.apartment,
+    required this.invoiceNumber,
+    required this.invoiceDate,
+    required this.storagePath,
+    required this.originalFilename,
+    required this.mimeType,
+    required this.sizeBytes,
+  });
+  final int id;
+  final String requestReference;
+  final String apartment;
+  final String invoiceNumber;
+  final String invoiceDate;
+  final String storagePath;
+  final String originalFilename;
+  final String mimeType;
+  final int sizeBytes;
+
+  factory InvoiceRecord.fromMap(Map<String, Object?> map) => InvoiceRecord(
+        id: (map['id'] as num).toInt(),
+        requestReference: map['request_reference'] as String,
+        apartment: map['apartment'] as String,
+        invoiceNumber: map['invoice_number'] as String,
+        invoiceDate: map['invoice_date'] as String,
+        storagePath: map['storage_path'] as String,
+        originalFilename: map['original_filename'] as String,
+        mimeType: map['mime_type'] as String,
+        sizeBytes: (map['size_bytes'] as num).toInt(),
+      );
+}
+
 class StockRequest {
   const StockRequest({
     required this.id,

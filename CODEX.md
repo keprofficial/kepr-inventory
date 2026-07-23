@@ -147,9 +147,22 @@ Run migrations in filename order:
 4. `20260723180000_stock_receipts_and_movement_log.sql`
 5. `20260723190000_roles_requests_approvals_usage.sql`
 6. `20260723200000_finance_approval_and_weekly_insights.sql`
+7. `20260723210000_private_invoice_storage.sql`
 
 Migration 19000 removes the temporary anonymous policies and restores
 authenticated role-based access.
+
+## Invoice storage
+
+- Private bucket: `inventory-invoices`
+- Maximum size: 10 MB
+- Accepted formats: PDF, JPG, PNG and WebP
+- Warehouse fulfillment requires invoice number, invoice date and a file.
+- `inventory_invoices` maps each file one-to-one to a fulfilled request.
+- Admin and Finance can filter the invoice register by month or exact date.
+- Files open through short-lived signed URLs; the bucket is not public.
+- If fulfillment fails after upload, the Flutter repository removes the
+  uploaded object to avoid orphaned files.
 
 ## Build and validation
 
@@ -193,6 +206,5 @@ Flutter service worker may cache assets.
 4. Test the complete three-role workflow with real rows.
 5. Improve responsive layouts if any ticket rows overflow on small screens.
 6. Add invoice file upload if the user wants an actual bill attachment rather
-   than only an invoice reference.
+   than only an invoice reference. (Implemented in migration 21000.)
 7. After local approval, configure and deploy the Flutter web build to Vercel.
-
