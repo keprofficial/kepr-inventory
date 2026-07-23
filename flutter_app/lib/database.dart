@@ -132,4 +132,101 @@ class InventoryDatabase {
         .map((row) => StockMovement.fromMap(Map<String, Object?>.from(row)))
         .toList();
   }
+
+  Future<InventoryUser> currentUser() async {
+    final userId = _db.auth.currentUser!.id;
+    final row = await _db
+        .from('inventory_users')
+        .select()
+        .eq('user_id', userId)
+        .single();
+    return InventoryUser.fromMap(Map<String, Object?>.from(row));
+  }
+
+  Future<List<StockRequest>> requests() async {
+    final rows = await _db.from('inventory_request_summary_view').select();
+    return rows
+        .map((row) => StockRequest.fromMap(Map<String, Object?>.from(row)))
+        .toList();
+  }
+
+  Future<String> createRequest(
+    List<TransferLine> lines,
+    String note,
+  ) async {
+    final result = await _db.rpc('inventory_create_request', params: {
+      'p_lines': lines
+          .map((line) => {
+                'product_id': line.productId,
+                'quantity': line.quantity,
+              })
+          .toList(),
+      'p_note': note.trim(),
+    });
+    return result as String;
+  }
+
+  Future<String> checkRequest(
+    int requestId, {
+    required bool forward,
+    String note = '',
+  }) async {
+    final result = await _db.rpc('inventory_check_request', params: {
+      'p_request_id': requestId,
+      'p_forward': forward,
+      'p_note': note.trim(),
+    });
+    return result as String;
+  }
+
+  Future<String> financeReview(
+    int requestId, {
+    required bool approve,
+    String note = '',
+  }) async {
+    final result = await _db.rpc('inventory_finance_review', params: {
+      'p_request_id': requestId,
+      'p_approve': approve,
+      'p_note': note.trim(),
+    });
+    return result as String;
+  }
+
+  Future<String> fulfillRequest(
+    int requestId,
+    String invoiceReference,
+  ) async {
+    final result = await _db.rpc('inventory_fulfill_request', params: {
+      'p_request_id': requestId,
+      'p_invoice_reference': invoiceReference.trim(),
+    });
+    return result as String;
+  }
+
+  Future<void> recordUsage({
+    required int productId,
+    required double quantity,
+    String note = '',
+  }) async {
+    await _db.rpc('inventory_record_usage', params: {
+      'p_product_id': productId,
+      'p_quantity': quantity,
+      'p_usage_date': DateTime.now().toIso8601String().substring(0, 10),
+      'p_note': note.trim(),
+    });
+  }
+
+  Future<List<UsageSummary>> monthlyUsage() async {
+    final rows = await _db.from('inventory_monthly_usage_view').select();
+    return rows
+        .map((row) => UsageSummary.fromMap(Map<String, Object?>.from(row)))
+        .toList();
+  }
+
+  Future<List<WeeklyInsight>> weeklyInsights() async {
+    final rows = await _db.from('inventory_weekly_insights_view').select();
+    return rows
+        .map((row) => WeeklyInsight.fromMap(Map<String, Object?>.from(row)))
+        .toList();
+  }
 }

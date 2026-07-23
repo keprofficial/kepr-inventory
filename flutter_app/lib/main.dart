@@ -59,7 +59,7 @@ class KeprApp extends StatelessWidget {
           ),
         ),
         home: SupabaseConfig.isConfigured
-            ? const HomeScreen()
+            ? const InventoryAuthGate()
             : const SupabaseSetupScreen(),
       );
 }
@@ -73,7 +73,37 @@ class InventoryAuthGate extends StatelessWidget {
         builder: (context, snapshot) =>
             Supabase.instance.client.auth.currentSession == null
                 ? const InventorySignInScreen()
-                : const HomeScreen(),
+                : const InventoryRoleGate(),
+      );
+}
+
+class InventoryRoleGate extends StatelessWidget {
+  const InventoryRoleGate({super.key});
+
+  @override
+  Widget build(BuildContext context) => FutureBuilder<InventoryUser>(
+        future: InventoryDatabase.instance.currentUser(),
+        builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return Scaffold(
+              body: EmptyState(
+                icon: Icons.admin_panel_settings_outlined,
+                title: 'Account role not configured',
+                message:
+                    'Add this user to inventory_users, then sign in again.\n'
+                    '${snapshot.error}',
+              ),
+            );
+          }
+          if (!snapshot.hasData) {
+            return const Scaffold(
+              body: Center(child: CircularProgressIndicator()),
+            );
+          }
+          if (snapshot.data!.isAdmin) return const HomeScreen();
+          if (snapshot.data!.isFinance) return const FinancePortal();
+          return ApartmentPortal(user: snapshot.data!);
+        },
       );
 }
 
@@ -85,15 +115,27 @@ class InventorySignInScreen extends StatefulWidget {
 }
 
 class _InventorySignInScreenState extends State<InventorySignInScreen> {
-  final email = TextEditingController();
+  final username = TextEditingController();
   final password = TextEditingController();
   bool loading = false;
 
   Future<void> signIn() async {
+    final login = username.text.trim().toLowerCase();
+    final validAdmin = login == 'admin' && password.text == 'admin123';
+    final validSociety = login == 'society' && password.text == 'society123';
+    final validFinance = login == 'finance' && password.text == 'finance123';
+    if (!validAdmin && !validSociety && !validFinance) {
+      showMessage(context, 'Invalid username or password.');
+      return;
+    }
     setState(() => loading = true);
     try {
       await Supabase.instance.client.auth.signInWithPassword(
-        email: email.text.trim(),
+        email: validAdmin
+            ? 'admin@kepr.local'
+            : validFinance
+                ? 'finance@kepr.local'
+                : 'society@kepr.local',
         password: password.text,
       );
     } on AuthException catch (error) {
@@ -139,9 +181,9 @@ class _InventorySignInScreenState extends State<InventorySignInScreen> {
                           style: TextStyle(color: Colors.black54)),
                       const SizedBox(height: 24),
                       TextField(
-                        controller: email,
-                        keyboardType: TextInputType.emailAddress,
-                        decoration: const InputDecoration(labelText: 'Email'),
+                        controller: username,
+                        decoration:
+                            const InputDecoration(labelText: 'Username'),
                       ),
                       const SizedBox(height: 12),
                       TextField(
@@ -227,8 +269,8 @@ class _HomeScreenState extends State<HomeScreen> {
       DashboardPage(key: ValueKey('dashboard-$revision'), onChanged: changed),
       WarehousePage(key: ValueKey('warehouse-$revision'), onChanged: changed),
       ApartmentsPage(key: ValueKey('apartments-$revision'), onChanged: changed),
+      RequestsPage(key: ValueKey('requests-$revision'), onChanged: changed),
       TransfersPage(key: ValueKey('transfers-$revision'), onChanged: changed),
-      ForecastPage(key: ValueKey('forecast-$revision')),
     ];
     return Scaffold(
       appBar: AppBar(
@@ -258,6 +300,13 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ],
         ),
+        actions: [
+          IconButton(
+            tooltip: 'Sign out',
+            onPressed: () => Supabase.instance.client.auth.signOut(),
+            icon: const Icon(Icons.logout),
+          ),
+        ],
       ),
       body: SafeArea(child: pages[index]),
       bottomNavigationBar: NavigationBar(
@@ -280,13 +329,14 @@ class _HomeScreenState extends State<HomeScreen> {
             label: 'Apartments',
           ),
           NavigationDestination(
+            icon: Icon(Icons.approval_outlined),
+            selectedIcon: Icon(Icons.approval),
+            label: 'Requests',
+          ),
+          NavigationDestination(
             icon: Icon(Icons.receipt_long_outlined),
             selectedIcon: Icon(Icons.receipt_long),
             label: 'Stock log',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.query_stats),
-            label: 'Forecast',
           ),
         ],
       ),
@@ -350,6 +400,7 @@ class DashboardPage extends StatelessWidget {
         future: Future.wait([
           InventoryDatabase.instance.products(),
           InventoryDatabase.instance.apartments(),
+          InventoryDatabase.instance.weeklyInsights(),
         ]),
         builder: (context, snapshot) {
           if (!snapshot.hasData) {
@@ -357,8 +408,13 @@ class DashboardPage extends StatelessWidget {
           }
           final products = snapshot.data![0] as List<Product>;
           final apartments = snapshot.data![1] as List<Apartment>;
+          final weekly = snapshot.data![2] as List<WeeklyInsight>;
           final value = products.fold<double>(0, (sum, p) => sum + p.value);
           final low = products.where((p) => p.isLow).length;
+          double weeklyValue(String metric) => weekly
+              .where(
+                  (item) => item.scope == 'warehouse' && item.metric == metric)
+              .fold(0, (sum, item) => sum + item.value);
           return PageShell(
             title: 'Good inventory starts here.',
             subtitle: DateFormat('EEEE, d MMMM').format(DateTime.now()),
@@ -394,6 +450,31 @@ class DashboardPage extends StatelessWidget {
                       warning: low > 0,
                     ),
                   ],
+                ),
+                const SizedBox(height: 18),
+                SectionCard(
+                  title: 'Last 7 days',
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: const Icon(Icons.south_west,
+                              color: Color(0xff3F9A6E)),
+                          title: const Text('Received'),
+                          subtitle: Text(number(weeklyValue('Stock received'))),
+                        ),
+                      ),
+                      Expanded(
+                        child: ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: const Icon(Icons.north_east, color: forest),
+                          title: const Text('Issued'),
+                          subtitle: Text(number(weeklyValue('Stock issued'))),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 18),
                 SectionCard(
@@ -627,48 +708,15 @@ class TransfersPage extends StatelessWidget {
           final movements = snapshot.data ?? [];
           return PageShell(
             title: 'Stock movement',
-            subtitle: 'Receive into the warehouse or move stock to apartments.',
-            action: Wrap(
-              spacing: 8,
-              children: [
-                OutlinedButton.icon(
-                  onPressed: () => showStockInForm(context, onChanged),
-                  icon: const Icon(Icons.south_west),
-                  label: const Text('Stock in'),
-                ),
-                FilledButton.icon(
-                  onPressed: () => showTransferForm(context, onChanged),
-                  icon: const Icon(Icons.north_east),
-                  label: const Text('Move out'),
-                ),
-              ],
+            subtitle:
+                'Receipts and approved apartment demand in one audit trail.',
+            action: FilledButton.icon(
+              onPressed: () => showStockInForm(context, onChanged),
+              icon: const Icon(Icons.south_west),
+              label: const Text('Stock in'),
             ),
             child: Column(
               children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: _MovementActionCard(
-                        icon: Icons.add_box_outlined,
-                        title: 'Stock in',
-                        message: 'Record supplier deliveries and purchases.',
-                        color: const Color(0xff3F9A6E),
-                        onTap: () => showStockInForm(context, onChanged),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _MovementActionCard(
-                        icon: Icons.local_shipping_outlined,
-                        title: 'Move out',
-                        message: 'Transfer warehouse stock to an apartment.',
-                        color: forest,
-                        onTap: () => showTransferForm(context, onChanged),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
                 SectionCard(
                   title: 'Stock log · ${movements.length} entries',
                   child: movements.isEmpty
@@ -738,45 +786,464 @@ class TransfersPage extends StatelessWidget {
       );
 }
 
-class _MovementActionCard extends StatelessWidget {
-  const _MovementActionCard({
-    required this.icon,
-    required this.title,
-    required this.message,
-    required this.color,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String title;
-  final String message;
-  final Color color;
-  final VoidCallback onTap;
+class RequestsPage extends StatelessWidget {
+  const RequestsPage({required this.onChanged, super.key});
+  final VoidCallback onChanged;
 
   @override
-  Widget build(BuildContext context) => InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: .08),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: color.withValues(alpha: .22)),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(icon, color: color),
-              const SizedBox(height: 10),
-              Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
-              const SizedBox(height: 3),
-              Text(message,
-                  maxLines: 2,
-                  style: const TextStyle(fontSize: 11, color: Colors.black54)),
-            ],
-          ),
+  Widget build(BuildContext context) => FutureBuilder(
+        future: Future.wait([
+          InventoryDatabase.instance.requests(),
+          InventoryDatabase.instance.monthlyUsage(),
+        ]),
+        builder: (context, snapshot) {
+          final requests =
+              snapshot.hasData ? snapshot.data![0] as List<StockRequest> : [];
+          final usage =
+              snapshot.hasData ? snapshot.data![1] as List<UsageSummary> : [];
+          final pending = requests.where((request) =>
+              request.status == 'pending_inventory' ||
+              request.status == 'finance_approved');
+          return PageShell(
+            title: 'Demand approvals',
+            subtitle:
+                'Apartment demand moves stock only after inventory approval.',
+            child: Column(
+              children: [
+                SectionCard(
+                  title: 'Warehouse action · ${pending.length}',
+                  child: pending.isEmpty
+                      ? const EmptyState(
+                          icon: Icons.task_alt,
+                          title: 'Queue is clear',
+                          message: 'New apartment demand will appear here.',
+                        )
+                      : Column(
+                          children: pending
+                              .map(
+                                (request) => ListTile(
+                                  contentPadding: EdgeInsets.zero,
+                                  leading: const CircleAvatar(
+                                    backgroundColor: Color(0xffFFF0EC),
+                                    child: Icon(Icons.pending_actions,
+                                        color: forest),
+                                  ),
+                                  title: Text(request.apartment,
+                                      style: const TextStyle(
+                                          fontWeight: FontWeight.w800)),
+                                  subtitle: Text(
+                                    '${request.reference} · ${request.lineCount} items\n'
+                                    '${number(request.totalQuantity)} units · ${request.note}',
+                                  ),
+                                  isThreeLine: true,
+                                  trailing: Wrap(
+                                    spacing: 4,
+                                    children: request.status ==
+                                            'pending_inventory'
+                                        ? [
+                                            IconButton(
+                                              tooltip: 'Reject',
+                                              onPressed: () async {
+                                                await InventoryDatabase.instance
+                                                    .checkRequest(
+                                                  request.id,
+                                                  forward: false,
+                                                );
+                                                onChanged();
+                                              },
+                                              icon: const Icon(Icons.close,
+                                                  color: Colors.red),
+                                            ),
+                                            FilledButton(
+                                              onPressed: () async {
+                                                try {
+                                                  await InventoryDatabase
+                                                      .instance
+                                                      .checkRequest(
+                                                    request.id,
+                                                    forward: true,
+                                                  );
+                                                  onChanged();
+                                                } catch (error) {
+                                                  if (context.mounted) {
+                                                    showMessage(context,
+                                                        readableError(error));
+                                                  }
+                                                }
+                                              },
+                                              child: const Text('Send finance'),
+                                            ),
+                                          ]
+                                        : [
+                                            FilledButton.icon(
+                                              onPressed: () =>
+                                                  showFulfillRequestDialog(
+                                                context,
+                                                request,
+                                                onChanged,
+                                              ),
+                                              icon: const Icon(
+                                                  Icons.receipt_long),
+                                              label: const Text('Issue stock'),
+                                            ),
+                                          ],
+                                  ),
+                                ),
+                              )
+                              .toList(),
+                        ),
+                ),
+                const SizedBox(height: 16),
+                SectionCard(
+                  title: 'Monthly apartment usage',
+                  child: usage.isEmpty
+                      ? const EmptyState(
+                          icon: Icons.query_stats,
+                          title: 'No usage recorded',
+                          message:
+                              'Apartment consumption totals will appear here.',
+                        )
+                      : Column(
+                          children: usage
+                              .take(30)
+                              .map(
+                                (item) => ListTile(
+                                  contentPadding: EdgeInsets.zero,
+                                  title: Text(item.apartment,
+                                      style: const TextStyle(
+                                          fontWeight: FontWeight.w700)),
+                                  subtitle:
+                                      Text('${item.month} · ${item.product}'),
+                                  trailing: Text(
+                                    '${number(item.quantity)} ${item.unit}\n'
+                                    '${inr(item.value)}',
+                                    textAlign: TextAlign.right,
+                                  ),
+                                ),
+                              )
+                              .toList(),
+                        ),
+                ),
+              ],
+            ),
+          );
+        },
+      );
+}
+
+class FinancePortal extends StatefulWidget {
+  const FinancePortal({super.key});
+
+  @override
+  State<FinancePortal> createState() => _FinancePortalState();
+}
+
+class _FinancePortalState extends State<FinancePortal> {
+  int revision = 0;
+  @override
+  Widget build(BuildContext context) => Scaffold(
+        appBar: AppBar(
+          backgroundColor: darkForest,
+          foregroundColor: Colors.white,
+          title: const Text('Finance approvals'),
+          actions: [
+            IconButton(
+              onPressed: () => Supabase.instance.client.auth.signOut(),
+              icon: const Icon(Icons.logout),
+            ),
+          ],
         ),
+        body: FutureBuilder<List<StockRequest>>(
+          key: ValueKey(revision),
+          future: InventoryDatabase.instance.requests(),
+          builder: (context, snapshot) {
+            final tickets = (snapshot.data ?? [])
+                .where((request) => request.status == 'pending_finance')
+                .toList();
+            return PageShell(
+              title: 'Demand tickets',
+              subtitle:
+                  'Inventory has confirmed availability. Approve or reject only.',
+              child: SectionCard(
+                title: 'Awaiting finance · ${tickets.length}',
+                child: tickets.isEmpty
+                    ? const EmptyState(
+                        icon: Icons.verified_outlined,
+                        title: 'Nothing to approve',
+                        message:
+                            'Inventory-checked demand tickets will appear here.',
+                      )
+                    : Column(
+                        children: tickets
+                            .map((ticket) => ListTile(
+                                  contentPadding: EdgeInsets.zero,
+                                  leading: const CircleAvatar(
+                                    backgroundColor: Color(0xffFFF0EC),
+                                    child: Icon(Icons.request_quote,
+                                        color: forest),
+                                  ),
+                                  title: Text(ticket.apartment,
+                                      style: const TextStyle(
+                                          fontWeight: FontWeight.w800)),
+                                  subtitle: Text(
+                                    '${ticket.reference} · ${ticket.lineCount} items\n'
+                                    '${number(ticket.totalQuantity)} units · ${inr(ticket.totalValue)}',
+                                  ),
+                                  isThreeLine: true,
+                                  trailing: Wrap(
+                                    spacing: 6,
+                                    children: [
+                                      OutlinedButton(
+                                        onPressed: () async {
+                                          await InventoryDatabase.instance
+                                              .financeReview(ticket.id,
+                                                  approve: false);
+                                          setState(() => revision++);
+                                        },
+                                        child: const Text('Reject'),
+                                      ),
+                                      FilledButton(
+                                        onPressed: () async {
+                                          await InventoryDatabase.instance
+                                              .financeReview(ticket.id,
+                                                  approve: true);
+                                          setState(() => revision++);
+                                        },
+                                        child: const Text('Approve'),
+                                      ),
+                                    ],
+                                  ),
+                                ))
+                            .toList(),
+                      ),
+              ),
+            );
+          },
+        ),
+      );
+}
+
+class ApartmentPortal extends StatefulWidget {
+  const ApartmentPortal({required this.user, super.key});
+  final InventoryUser user;
+
+  @override
+  State<ApartmentPortal> createState() => _ApartmentPortalState();
+}
+
+class _ApartmentPortalState extends State<ApartmentPortal> {
+  int index = 0;
+  int revision = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    final apartmentId = widget.user.apartmentId!;
+    final pages = [
+      ApartmentStockPage(
+        key: ValueKey('apt-stock-$revision'),
+        apartmentId: apartmentId,
+      ),
+      ApartmentDemandPage(
+        key: ValueKey('apt-demand-$revision'),
+        onChanged: () => setState(() => revision++),
+      ),
+      ApartmentUsagePage(
+        key: ValueKey('apt-usage-$revision'),
+        apartmentId: apartmentId,
+        onChanged: () => setState(() => revision++),
+      ),
+    ];
+    return Scaffold(
+      appBar: AppBar(
+        backgroundColor: darkForest,
+        foregroundColor: Colors.white,
+        title: Text(widget.user.displayName.isEmpty
+            ? 'Apartment Inventory'
+            : widget.user.displayName),
+        actions: [
+          IconButton(
+            onPressed: () => Supabase.instance.client.auth.signOut(),
+            icon: const Icon(Icons.logout),
+          ),
+        ],
+      ),
+      body: SafeArea(child: pages[index]),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: index,
+        onDestinationSelected: (value) => setState(() => index = value),
+        destinations: const [
+          NavigationDestination(
+              icon: Icon(Icons.inventory_2_outlined), label: 'My stock'),
+          NavigationDestination(
+              icon: Icon(Icons.add_shopping_cart), label: 'Demand'),
+          NavigationDestination(icon: Icon(Icons.query_stats), label: 'Usage'),
+        ],
+      ),
+    );
+  }
+}
+
+class ApartmentStockPage extends StatelessWidget {
+  const ApartmentStockPage({required this.apartmentId, super.key});
+  final int apartmentId;
+  @override
+  Widget build(BuildContext context) => FutureBuilder<List<ApartmentStock>>(
+        future: InventoryDatabase.instance.apartmentStock(apartmentId),
+        builder: (context, snapshot) {
+          final stock = snapshot.data ?? [];
+          return PageShell(
+            title: 'Available stock',
+            subtitle: 'Inventory currently issued to your apartment.',
+            child: SectionCard(
+              title: '${stock.length} products available',
+              child: stock.isEmpty
+                  ? const EmptyState(
+                      icon: Icons.inventory_2_outlined,
+                      title: 'No stock available',
+                      message: 'Raise a demand request for required products.',
+                    )
+                  : Column(
+                      children: stock
+                          .map((item) => ListTile(
+                                title: Text(item.productName),
+                                subtitle: Text(inr(item.unitPrice)),
+                                trailing: Text(
+                                  '${number(item.quantity)} ${item.unit}',
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.w800),
+                                ),
+                              ))
+                          .toList(),
+                    ),
+            ),
+          );
+        },
+      );
+}
+
+class ApartmentDemandPage extends StatelessWidget {
+  const ApartmentDemandPage({required this.onChanged, super.key});
+  final VoidCallback onChanged;
+  @override
+  Widget build(BuildContext context) => FutureBuilder<List<StockRequest>>(
+        future: InventoryDatabase.instance.requests(),
+        builder: (context, snapshot) {
+          final requests = snapshot.data ?? [];
+          return PageShell(
+            title: 'Stock demand',
+            subtitle:
+                'Requests need Main Inventory approval before stock moves.',
+            action: FilledButton.icon(
+              onPressed: () => showDemandForm(context, onChanged),
+              icon: const Icon(Icons.add),
+              label: const Text('Raise demand'),
+            ),
+            child: SectionCard(
+              title: 'My requests',
+              child: requests.isEmpty
+                  ? const EmptyState(
+                      icon: Icons.pending_actions,
+                      title: 'No demand requests',
+                      message: 'Raise a request when stock is required.',
+                    )
+                  : Column(
+                      children: requests
+                          .map((request) => ListTile(
+                                title: Text(request.reference),
+                                subtitle: Text(
+                                    '${request.lineCount} items · ${request.note}'),
+                                trailing: StatusPill(
+                                  text: request.status.toUpperCase(),
+                                  warning: request.status == 'pending',
+                                ),
+                              ))
+                          .toList(),
+                    ),
+            ),
+          );
+        },
+      );
+}
+
+class ApartmentUsagePage extends StatelessWidget {
+  const ApartmentUsagePage({
+    required this.apartmentId,
+    required this.onChanged,
+    super.key,
+  });
+  final int apartmentId;
+  final VoidCallback onChanged;
+  @override
+  Widget build(BuildContext context) => FutureBuilder(
+        future: Future.wait([
+          InventoryDatabase.instance.monthlyUsage(),
+          InventoryDatabase.instance.weeklyInsights(),
+        ]),
+        builder: (context, snapshot) {
+          final usage =
+              snapshot.hasData ? snapshot.data![0] as List<UsageSummary> : [];
+          final weekly =
+              snapshot.hasData ? snapshot.data![1] as List<WeeklyInsight> : [];
+          double weeklyValue(String metric) => weekly
+              .where((item) =>
+                  item.apartmentId == apartmentId && item.metric == metric)
+              .fold(0, (sum, item) => sum + item.value);
+          return PageShell(
+            title: 'Monthly usage',
+            subtitle: 'Record consumed stock to keep availability accurate.',
+            action: FilledButton.icon(
+              onPressed: () =>
+                  showRecordUsageForm(context, apartmentId, onChanged),
+              icon: const Icon(Icons.remove_circle_outline),
+              label: const Text('Record usage'),
+            ),
+            child: Column(
+              children: [
+                SectionCard(
+                  title: 'Last 7 days',
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: const Text('Consumed'),
+                          subtitle: Text(number(weeklyValue('Stock consumed'))),
+                        ),
+                      ),
+                      Expanded(
+                        child: ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: const Text('Demands raised'),
+                          subtitle: Text(number(weeklyValue('Demand raised'))),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                SectionCard(
+                  title: 'Consumption history',
+                  child: usage.isEmpty
+                      ? const EmptyState(
+                          icon: Icons.query_stats,
+                          title: 'No usage recorded',
+                          message: 'Record consumption as items are used.',
+                        )
+                      : Column(
+                          children: usage
+                              .map((item) => ListTile(
+                                    title: Text(item.product),
+                                    subtitle: Text(item.month),
+                                    trailing: Text(
+                                        '${number(item.quantity)} ${item.unit}'),
+                                  ))
+                              .toList(),
+                        ),
+                ),
+              ],
+            ),
+          );
+        },
       );
 }
 
@@ -1250,6 +1717,218 @@ Future<bool> showUsageForm(
     ),
   );
   return result ?? false;
+}
+
+Future<void> showFulfillRequestDialog(
+  BuildContext context,
+  StockRequest request,
+  VoidCallback onSaved,
+) async {
+  final invoice = TextEditingController();
+  await showDialog(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      title: const Text('Issue approved stock'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('${request.reference} · ${request.apartment}'),
+          const SizedBox(height: 14),
+          TextField(
+            controller: invoice,
+            decoration: const InputDecoration(
+              labelText: 'Invoice / bill reference',
+              hintText: 'Example: INV-2026-0184',
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(dialogContext),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () async {
+            if (invoice.text.trim().isEmpty) return;
+            try {
+              final transfer = await InventoryDatabase.instance
+                  .fulfillRequest(request.id, invoice.text);
+              if (dialogContext.mounted) Navigator.pop(dialogContext);
+              if (context.mounted) {
+                showMessage(context, 'Stock issued as $transfer.');
+              }
+              onSaved();
+            } catch (error) {
+              if (dialogContext.mounted) {
+                showMessage(dialogContext, readableError(error));
+              }
+            }
+          },
+          child: const Text('Issue stock'),
+        ),
+      ],
+    ),
+  );
+}
+
+Future<void> showDemandForm(
+  BuildContext context,
+  VoidCallback onSaved,
+) async {
+  final products = await InventoryDatabase.instance.products();
+  if (!context.mounted || products.isEmpty) return;
+  final productId = ValueNotifier<int>(products.first.id);
+  final quantity = TextEditingController();
+  final note = TextEditingController();
+  await showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    builder: (sheetContext) => Padding(
+      padding: EdgeInsets.fromLTRB(
+        20,
+        20,
+        20,
+        MediaQuery.viewInsetsOf(sheetContext).bottom + 24,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text('Raise stock demand',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 16),
+          ValueListenableBuilder(
+            valueListenable: productId,
+            builder: (context, value, _) => DropdownButtonFormField<int>(
+              initialValue: value,
+              decoration: const InputDecoration(labelText: 'Product'),
+              items: products
+                  .map((p) => DropdownMenuItem(
+                      value: p.id,
+                      child:
+                          Text('${p.name} · ${number(p.quantity)} available')))
+                  .toList(),
+              onChanged: (value) => productId.value = value!,
+            ),
+          ),
+          const SizedBox(height: 12),
+          NumberField('Required quantity', quantity),
+          const SizedBox(height: 12),
+          TextField(
+            controller: note,
+            decoration:
+                const InputDecoration(labelText: 'Reason / requirement note'),
+          ),
+          const SizedBox(height: 16),
+          FilledButton(
+            onPressed: () async {
+              try {
+                final reference =
+                    await InventoryDatabase.instance.createRequest(
+                  [
+                    TransferLine(
+                      productId: productId.value,
+                      quantity: double.tryParse(quantity.text) ?? 0,
+                    ),
+                  ],
+                  note.text,
+                );
+                if (sheetContext.mounted) Navigator.pop(sheetContext);
+                if (context.mounted) {
+                  showMessage(context, 'Demand $reference submitted.');
+                }
+                onSaved();
+              } catch (error) {
+                if (sheetContext.mounted) {
+                  showMessage(sheetContext, readableError(error));
+                }
+              }
+            },
+            child: const Text('Submit for approval'),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+Future<void> showRecordUsageForm(
+  BuildContext context,
+  int apartmentId,
+  VoidCallback onSaved,
+) async {
+  final stock = await InventoryDatabase.instance.apartmentStock(apartmentId);
+  if (!context.mounted) return;
+  if (stock.isEmpty) {
+    showMessage(context, 'No apartment stock is available to consume.');
+    return;
+  }
+  var productId = stock.first.productId;
+  final quantity = TextEditingController();
+  final note = TextEditingController();
+  await showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    builder: (sheetContext) => StatefulBuilder(
+      builder: (context, setSheetState) => Padding(
+        padding: EdgeInsets.fromLTRB(
+          20,
+          20,
+          20,
+          MediaQuery.viewInsetsOf(context).bottom + 24,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text('Record stock usage',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
+            const SizedBox(height: 16),
+            DropdownButtonFormField<int>(
+              initialValue: productId,
+              decoration: const InputDecoration(labelText: 'Product'),
+              items: stock
+                  .map((item) => DropdownMenuItem(
+                        value: item.productId,
+                        child: Text(
+                            '${item.productName} · ${number(item.quantity)} available'),
+                      ))
+                  .toList(),
+              onChanged: (value) => productId = value!,
+            ),
+            const SizedBox(height: 12),
+            NumberField('Quantity used', quantity),
+            const SizedBox(height: 12),
+            TextField(
+              controller: note,
+              decoration: const InputDecoration(labelText: 'Usage note'),
+            ),
+            const SizedBox(height: 16),
+            FilledButton(
+              onPressed: () async {
+                try {
+                  await InventoryDatabase.instance.recordUsage(
+                    productId: productId,
+                    quantity: double.tryParse(quantity.text) ?? 0,
+                    note: note.text,
+                  );
+                  if (sheetContext.mounted) Navigator.pop(sheetContext);
+                  onSaved();
+                } catch (error) {
+                  if (sheetContext.mounted) {
+                    showMessage(sheetContext, readableError(error));
+                  }
+                }
+              },
+              child: const Text('Record consumption'),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
 }
 
 Future<void> showStockInForm(

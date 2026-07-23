@@ -48,8 +48,7 @@ Settings → API:
 
 ```powershell
 flutter run `
-  --dart-define=SUPABASE_URL=https://YOUR_PROJECT.supabase.co `
-  --dart-define=SUPABASE_PUBLISHABLE_KEY=YOUR_PUBLISHABLE_KEY
+  --dart-define-from-file=.env
 ```
 
 Do not place the service-role key in the Flutter application.
@@ -58,8 +57,7 @@ Do not place the service-role key in the Flutter application.
 
 ```powershell
 flutter build appbundle --release `
-  --dart-define=SUPABASE_URL=https://YOUR_PROJECT.supabase.co `
-  --dart-define=SUPABASE_PUBLISHABLE_KEY=YOUR_PUBLISHABLE_KEY
+  --dart-define-from-file=.env
 ```
 
 The release bundle is written to
