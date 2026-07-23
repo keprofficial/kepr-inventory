@@ -140,7 +140,8 @@ begin
   return v_reference;
 end $$;
 
-create or replace view public.inventory_request_summary_view
+drop view if exists public.inventory_request_summary_view;
+create view public.inventory_request_summary_view
 with (security_invoker=true) as
 select r.id,r.reference,r.apartment_id,a.name apartment,r.status,r.note,
   r.inventory_note,r.finance_note,r.invoice_reference,
