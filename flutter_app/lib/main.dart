@@ -207,6 +207,7 @@ class SupabaseSetupScreen extends StatelessWidget {
           ),
         ),
       );
+}
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -321,13 +322,15 @@ class PageShell extends StatelessWidget {
                   children: [
                     Text(
                       title,
-                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: -.5,
-                          ),
+                      style:
+                          Theme.of(context).textTheme.headlineSmall?.copyWith(
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: -.5,
+                              ),
                     ),
                     const SizedBox(height: 4),
-                    Text(subtitle, style: const TextStyle(color: Colors.black54)),
+                    Text(subtitle,
+                        style: const TextStyle(color: Colors.black54)),
                   ],
                 ),
               ),
@@ -610,8 +613,7 @@ class TransfersPage extends StatelessWidget {
   final VoidCallback onChanged;
 
   @override
-  Widget build(BuildContext context) =>
-      FutureBuilder<List<TransferSummary>>(
+  Widget build(BuildContext context) => FutureBuilder<List<TransferSummary>>(
         future: InventoryDatabase.instance.transfers(),
         builder: (context, snapshot) {
           final transfers = snapshot.data ?? [];
@@ -792,9 +794,7 @@ class MetricCard extends StatelessWidget {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
           side: BorderSide(
-            color: warning
-                ? const Color(0xffF7D3C6)
-                : const Color(0xffE2E9E5),
+            color: warning ? const Color(0xffF7D3C6) : const Color(0xffE2E9E5),
           ),
         ),
         child: Padding(
@@ -910,9 +910,7 @@ class StatusPill extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
         decoration: BoxDecoration(
-          color: warning
-              ? const Color(0xffFFE8DF)
-              : const Color(0xffE2F1E9),
+          color: warning ? const Color(0xffFFE8DF) : const Color(0xffE2F1E9),
           borderRadius: BorderRadius.circular(30),
         ),
         child: Text(
@@ -996,7 +994,7 @@ Future<void> showProductForm(
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
-                value: unit,
+                initialValue: unit,
                 decoration: const InputDecoration(labelText: 'Unit'),
                 items: ['Pcs', 'Liters', 'Kg', 'Packets', 'Bottles']
                     .map((u) => DropdownMenuItem(value: u, child: Text(u)))
@@ -1189,7 +1187,7 @@ Future<void> showTransferForm(
               ),
               const SizedBox(height: 18),
               DropdownButtonFormField<int>(
-                value: apartmentId,
+                initialValue: apartmentId,
                 decoration: const InputDecoration(labelText: 'Apartment'),
                 items: apartments
                     .map(
@@ -1212,7 +1210,7 @@ Future<void> showTransferForm(
                       Expanded(
                         flex: 2,
                         child: DropdownButtonFormField<int>(
-                          value: line.productId,
+                          initialValue: line.productId,
                           decoration:
                               const InputDecoration(labelText: 'Product'),
                           items: products
@@ -1260,11 +1258,9 @@ Future<void> showTransferForm(
               FilledButton(
                 onPressed: () async {
                   try {
-                    final reference =
-                        await InventoryDatabase.instance.transfer(
+                    final reference = await InventoryDatabase.instance.transfer(
                       apartmentId: apartmentId,
-                      date:
-                          DateTime.now().toIso8601String().substring(0, 10),
+                      date: DateTime.now().toIso8601String().substring(0, 10),
                       lines: lines,
                     );
                     if (sheetContext.mounted) {
