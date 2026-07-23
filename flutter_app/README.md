@@ -53,6 +53,20 @@ flutter run `
 
 Do not place the service-role key in the Flutter application.
 
+## Temporary role logins
+
+The first screen asks the user to select a workspace.
+
+- Inventory & Warehouse: `admin` / `admin123`
+- Finance: `finance` / `finance123`
+- Apartment: `society` / `society123`
+
+Apartment usernames map to `{username}@kepr.local`. Each additional apartment
+user must exist in Supabase Authentication and have an `inventory_users` row
+whose `apartment_id` identifies that user's apartment. Run
+`../supabase/setup_demo_roles.sql` after creating the three temporary Auth
+users.
+
 ## Android release
 
 ```powershell

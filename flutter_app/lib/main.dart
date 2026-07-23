@@ -118,13 +118,19 @@ class _InventorySignInScreenState extends State<InventorySignInScreen> {
   final username = TextEditingController();
   final password = TextEditingController();
   bool loading = false;
+  String? selectedRole;
 
   Future<void> signIn() async {
     final login = username.text.trim().toLowerCase();
     final validAdmin = login == 'admin' && password.text == 'admin123';
-    final validSociety = login == 'society' && password.text == 'society123';
+    final validApartment = selectedRole == 'apartment' &&
+        login.isNotEmpty &&
+        password.text.isNotEmpty;
     final validFinance = login == 'finance' && password.text == 'finance123';
-    if (!validAdmin && !validSociety && !validFinance) {
+    final roleMatches = (selectedRole == 'inventory' && validAdmin) ||
+        (selectedRole == 'finance' && validFinance) ||
+        validApartment;
+    if (!roleMatches) {
       showMessage(context, 'Invalid username or password.');
       return;
     }
@@ -135,7 +141,7 @@ class _InventorySignInScreenState extends State<InventorySignInScreen> {
             ? 'admin@kepr.local'
             : validFinance
                 ? 'finance@kepr.local'
-                : 'society@kepr.local',
+                : '$login@kepr.local',
         password: password.text,
       );
     } on AuthException catch (error) {
@@ -147,11 +153,14 @@ class _InventorySignInScreenState extends State<InventorySignInScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
+        backgroundColor: const Color(0xffF8FAFC),
         body: Center(
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(24),
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 420),
+              constraints: BoxConstraints(
+                maxWidth: selectedRole == null ? 760 : 430,
+              ),
               child: Card(
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(24),
@@ -162,42 +171,128 @@ class _InventorySignInScreenState extends State<InventorySignInScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      const Align(
+                      Align(
                         alignment: Alignment.centerLeft,
-                        child: CircleAvatar(
-                          radius: 28,
-                          backgroundColor: forest,
-                          foregroundColor: Colors.white,
-                          child: Text('K',
-                              style: TextStyle(
-                                  fontSize: 24, fontWeight: FontWeight.w800)),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: Image.asset(
+                                'assets/brand/kepr_icon.png',
+                                width: 52,
+                                height: 52,
+                                fit: BoxFit.cover,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            const Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('KEPR',
+                                    style: TextStyle(
+                                        fontSize: 24,
+                                        fontWeight: FontWeight.w900)),
+                                Text('INVENTORY',
+                                    style: TextStyle(
+                                        fontSize: 10, letterSpacing: 2)),
+                              ],
+                            ),
+                          ],
                         ),
                       ),
                       const SizedBox(height: 22),
-                      const Text('KEPR Inventory',
-                          style: TextStyle(
-                              fontSize: 26, fontWeight: FontWeight.w800)),
-                      const Text('Sign in with your KEPR staff account.',
-                          style: TextStyle(color: Colors.black54)),
-                      const SizedBox(height: 24),
-                      TextField(
-                        controller: username,
-                        decoration:
-                            const InputDecoration(labelText: 'Username'),
-                      ),
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: password,
-                        obscureText: true,
-                        onSubmitted: (_) => signIn(),
-                        decoration:
-                            const InputDecoration(labelText: 'Password'),
-                      ),
-                      const SizedBox(height: 18),
-                      FilledButton(
-                        onPressed: loading ? null : signIn,
-                        child: Text(loading ? 'Signing in…' : 'Sign in'),
-                      ),
+                      if (selectedRole == null) ...[
+                        const Text('Choose your workspace',
+                            style: TextStyle(
+                                fontSize: 26, fontWeight: FontWeight.w800)),
+                        const SizedBox(height: 5),
+                        const Text(
+                          'Select a role to continue to the correct dashboard.',
+                          style: TextStyle(color: Colors.black54),
+                        ),
+                        const SizedBox(height: 24),
+                        Wrap(
+                          spacing: 12,
+                          runSpacing: 12,
+                          children: [
+                            _RoleOption(
+                              icon: Icons.warehouse_outlined,
+                              title: 'Inventory & Warehouse',
+                              message:
+                                  'Stock, availability checks, issues and logs',
+                              onTap: () =>
+                                  setState(() => selectedRole = 'inventory'),
+                            ),
+                            _RoleOption(
+                              icon: Icons.account_balance_outlined,
+                              title: 'Finance',
+                              message:
+                                  'Review demand tickets and approve budgets',
+                              onTap: () =>
+                                  setState(() => selectedRole = 'finance'),
+                            ),
+                            _RoleOption(
+                              icon: Icons.apartment_outlined,
+                              title: 'Apartment',
+                              message:
+                                  'View stock, raise demand and record usage',
+                              onTap: () =>
+                                  setState(() => selectedRole = 'apartment'),
+                            ),
+                          ],
+                        ),
+                      ] else ...[
+                        Text(
+                          selectedRole == 'inventory'
+                              ? 'Inventory & Warehouse login'
+                              : selectedRole == 'finance'
+                                  ? 'Finance login'
+                                  : 'Apartment login',
+                          style: const TextStyle(
+                              fontSize: 24, fontWeight: FontWeight.w800),
+                        ),
+                        const SizedBox(height: 5),
+                        Text(
+                          selectedRole == 'apartment'
+                              ? 'Use the username mapped to your apartment.'
+                              : 'Sign in with your assigned KEPR account.',
+                          style: const TextStyle(color: Colors.black54),
+                        ),
+                        const SizedBox(height: 24),
+                        TextField(
+                          controller: username,
+                          decoration: InputDecoration(
+                            labelText: selectedRole == 'apartment'
+                                ? 'Apartment username'
+                                : 'Username',
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: password,
+                          obscureText: true,
+                          onSubmitted: (_) => signIn(),
+                          decoration:
+                              const InputDecoration(labelText: 'Password'),
+                        ),
+                        const SizedBox(height: 18),
+                        FilledButton(
+                          onPressed: loading ? null : signIn,
+                          child: Text(loading ? 'Signing in…' : 'Sign in'),
+                        ),
+                        TextButton.icon(
+                          onPressed: loading
+                              ? null
+                              : () => setState(() {
+                                    selectedRole = null;
+                                    username.clear();
+                                    password.clear();
+                                  }),
+                          icon: const Icon(Icons.arrow_back),
+                          label: const Text('Choose another workspace'),
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -205,6 +300,79 @@ class _InventorySignInScreenState extends State<InventorySignInScreen> {
             ),
           ),
         ),
+      );
+}
+
+class _RoleOption extends StatelessWidget {
+  const _RoleOption({
+    required this.icon,
+    required this.title,
+    required this.message,
+    required this.onTap,
+  });
+  final IconData icon;
+  final String title;
+  final String message;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+        width: 210,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
+          child: Container(
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xffE2E8F0)),
+              color: Colors.white,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(icon, color: forest, size: 28),
+                const SizedBox(height: 14),
+                Text(title,
+                    style: const TextStyle(
+                        fontSize: 15, fontWeight: FontWeight.w800)),
+                const SizedBox(height: 5),
+                Text(message,
+                    style:
+                        const TextStyle(fontSize: 11, color: Colors.black54)),
+              ],
+            ),
+          ),
+        ),
+      );
+}
+
+class _AppBarBrand extends StatelessWidget {
+  const _AppBarBrand(this.label);
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Row(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: Image.asset(
+              'assets/brand/kepr_icon.png',
+              width: 38,
+              height: 38,
+              fit: BoxFit.cover,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('KEPR', style: TextStyle(fontWeight: FontWeight.w900)),
+              Text(label.toUpperCase(),
+                  style: const TextStyle(fontSize: 9, letterSpacing: 1.4)),
+            ],
+          ),
+        ],
       );
 }
 
@@ -276,30 +444,7 @@ class _HomeScreenState extends State<HomeScreen> {
       appBar: AppBar(
         backgroundColor: darkForest,
         foregroundColor: Colors.white,
-        title: Row(
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(9),
-              child: Image.asset(
-                'assets/brand/kepr_lockup.png',
-                width: 42,
-                height: 42,
-                fit: BoxFit.cover,
-              ),
-            ),
-            const SizedBox(width: 12),
-            const Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('KEPR', style: TextStyle(fontWeight: FontWeight.w800)),
-                Text(
-                  'INVENTORY',
-                  style: TextStyle(fontSize: 9, letterSpacing: 1.5),
-                ),
-              ],
-            ),
-          ],
-        ),
+        title: const _AppBarBrand('Inventory & Warehouse'),
         actions: [
           IconButton(
             tooltip: 'Sign out',
@@ -945,7 +1090,7 @@ class _FinancePortalState extends State<FinancePortal> {
         appBar: AppBar(
           backgroundColor: darkForest,
           foregroundColor: Colors.white,
-          title: const Text('Finance approvals'),
+          title: const _AppBarBrand('Finance'),
           actions: [
             IconButton(
               onPressed: () => Supabase.instance.client.auth.signOut(),
@@ -1057,8 +1202,8 @@ class _ApartmentPortalState extends State<ApartmentPortal> {
       appBar: AppBar(
         backgroundColor: darkForest,
         foregroundColor: Colors.white,
-        title: Text(widget.user.displayName.isEmpty
-            ? 'Apartment Inventory'
+        title: _AppBarBrand(widget.user.displayName.isEmpty
+            ? 'Apartment'
             : widget.user.displayName),
         actions: [
           IconButton(
